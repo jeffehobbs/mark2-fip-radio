@@ -1,0 +1,11 @@
+[Unit]
+Description=FIP radio button handler (SJ-201)
+After=mpd.service
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/fipradio/buttons.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

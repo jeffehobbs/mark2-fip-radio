@@ -1,0 +1,8 @@
+
+# === Mycroft Mark II SJ-201 (FIP radio) hardware ===
+dtparam=i2s=on
+dtoverlay=i2s-mmap
+dtoverlay=vc4-kms-dsi-7inch
+dtoverlay=sj201
+dtoverlay=sj201-rev10-pwm-fan-overlay,poe_fan_temp0=65000,poe_fan_temp0_hyst=5000,poe_fan_temp1=70000,poe_fan_temp2=75000,poe_fan_temp3=80000
+dtoverlay=sj201-buttons-overlay

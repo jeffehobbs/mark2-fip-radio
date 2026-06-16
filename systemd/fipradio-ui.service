@@ -1,0 +1,12 @@
+[Unit]
+Description=FIP radio now-playing UI backend
+After=network-online.target mpd.service
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/fipradio/server.py
+Restart=always
+User=mpd
+
+[Install]
+WantedBy=multi-user.target

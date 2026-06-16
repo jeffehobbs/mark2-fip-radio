@@ -1,0 +1,10 @@
+[Unit]
+Description=Mark II fan controller (quiet)
+
+[Service]
+ExecStart=/opt/fipradio/venv/bin/python3 /opt/fipradio/fan_daemon.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

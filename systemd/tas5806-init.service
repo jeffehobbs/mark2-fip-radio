@@ -1,0 +1,13 @@
+[Unit]
+Description=Initialize SJ-201 TAS5806 amplifier (Mark II)
+After=sound.target
+Wants=sound.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 4
+ExecStart=/usr/local/bin/tas5806-init 0x50
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

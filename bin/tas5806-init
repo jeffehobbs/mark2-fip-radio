@@ -1,0 +1,17 @@
+#!/bin/bash
+# Bring SJ-201 TAS5806 I2S amp (bus 1, addr 0x2f) out of shutdown into PLAY.
+# Register sequence per OpenVoiceOS/MycroftAI; 100ms between writes is required.
+BUS=1; ADDR=0x2f
+w(){ /usr/sbin/i2cset -y $BUS $ADDR "$1" "$2"; sleep 0.1; }
+w 0x01 0x11   # DEVICE_CTRL_1: reset
+w 0x78 0x80   # FAULT_CLEAR
+w 0x01 0x00   # remove reset
+w 0x78 0x00   # release fault clear
+w 0x33 0x03   # SAP_CTRL1: 32-bit word length
+w 0x4c "${1:-0x60}"   # AGAIN analog gain (lower=louder); arg overrides
+w 0x30 0x01   # SDOUT = DSP input
+w 0x03 0x00   # DEVICE_CTRL_2: deep sleep
+w 0x03 0x02   # DEVICE_CTRL_2: HiZ
+w 0x5c 0x01   # BQ coefficient write-start
+w 0x03 0x03   # DEVICE_CTRL_2: PLAY
+echo "tas5806 init done (state reg 0x03 -> $(/usr/sbin/i2cget -y $BUS $ADDR 0x03))"

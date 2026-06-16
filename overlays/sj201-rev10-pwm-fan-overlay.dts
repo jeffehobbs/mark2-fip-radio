@@ -1,0 +1,94 @@
+/*
+ * Device Tree Overlay for SJ-201 Rev6&10 - XMOS VocalFusion 3510-INT PWM fan.
+ * 
+ * This overlay configures a PWM (Pulse Width Modulation) controlled fan connected
+ * to the SJ201 Rev6&10 board. It sets up the necessary GPIO pin for PWM output,
+ * configures the PWM channel, and defines thermal management properties to
+ * control the fan speed based on the CPU temperature.
+ *
+ * The fan is controlled based on predefined temperature thresholds (trips),
+ * adjusting its speed to maintain optimal thermal conditions.
+ *
+ * Instructions:
+ * Compile this DTO with the following command:
+ * dtc -@ -H epapr -O dtb -o sj201-rev10-pwm-fan-overlay.dtbo -Wno-unit_address_vs_reg sj201-rev10-pwm-fan-overlay.dts
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2835";
+
+    /* Configure the GPIO pin for PWM output */
+    fragment@0 {
+        target = <&gpio>;
+        __overlay__ {
+            pwm_pins: pwm_pins {
+                brcm,pins = <13>;         // GPIO pin 13 for PWM output
+                brcm,function = <4>;      // Set pin function to ALT0 for PWM
+                brcm,pull = <0>;          // Disable internal pull-up/down resistors
+            };
+        };
+    };
+
+    /* Configure the PWM channel */
+    fragment@1 {
+        target = <&pwm>;
+        __overlay__ {
+            pinctrl-names = "default";
+            pinctrl-0 = <&pwm_pins>;              // Use the configured GPIO pin
+            assigned-clock-rates = <2400000>;     // Set PWM clock rate
+            status = "okay";
+        };
+    };
+
+    /* Define the PWM fan device */
+    fragment@2 {
+        target-path = "/";
+        __overlay__ {
+            fan0: sj201-rev10-pwm-fan@0 {
+                compatible = "pwm-fan";
+                cooling-min-state = <0>;            // Minimum fan speed state
+                cooling-max-state = <4>;            // Maximum fan speed state
+                #cooling-cells = <2>;               // Cooling cells for fan speed control
+                cooling-levels = <255 192 129 66 0>; // Define cooling levels (inverted polarity)
+                pwms = <&pwm 1 1000000 0>;          // Configure PWM: channel, period (1s), flags
+                status = "okay";
+            };
+        };
+    };
+
+    /* Configure thermal management properties */
+    fragment@3 {
+        target = <&cpu_thermal>;
+        __overlay__ {
+            trips {
+                // Define temperature thresholds and hysteresis for activating cooling states
+                trip0: trip0 { temperature = <40000>; hysteresis = <10000>; type = "active"; };
+                trip1: trip1 { temperature = <50000>; hysteresis = <2000>;  type = "active"; };
+                trip2: trip2 { temperature = <55000>; hysteresis = <2000>;  type = "active"; };
+                trip3: trip3 { temperature = <60000>; hysteresis = <4000>;  type = "active"; };
+            };
+            cooling-maps {
+                // Map temperature thresholds (trips) to specific fan speed states
+                map0 { trip = <&trip0>; cooling-device = <&fan0 0 1>; };
+                map1 { trip = <&trip1>; cooling-device = <&fan0 1 2>; };
+                map2 { trip = <&trip2>; cooling-device = <&fan0 2 3>; };
+                map3 { trip = <&trip3>; cooling-device = <&fan0 3 4>; };
+            };
+        };
+    };
+
+    /* Overrides for setting temperatures and hysteresis via kernel command line */
+    __overrides__ {
+        poe_fan_temp0 = <&trip0>,"temperature:0";
+        poe_fan_temp0_hyst = <&trip0>,"hysteresis:0";
+        poe_fan_temp1 = <&trip1>,"temperature:0";
+        poe_fan_temp1_hyst = <&trip1>,"hysteresis:0";
+        poe_fan_temp2 = <&trip2>,"temperature:0";
+        poe_fan_temp2_hyst = <&trip2>,"hysteresis:0";
+        poe_fan_temp3 = <&trip3>,"temperature:0";
+        poe_fan_temp3_hyst = <&trip3>,"hysteresis:0";
+    };
+};

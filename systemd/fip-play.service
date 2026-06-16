@@ -1,0 +1,13 @@
+[Unit]
+Description=Resume FIP playback once network is online (volume restored by MPD)
+After=network-online.target mpd.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/bin/mpc play
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
