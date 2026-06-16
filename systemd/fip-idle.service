@@ -1,0 +1,11 @@
+[Unit]
+Description=FIP idle auto-stop (bandwidth saver)
+After=mpd.service
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/fipradio/idle_watch.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

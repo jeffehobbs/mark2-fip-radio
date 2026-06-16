@@ -31,6 +31,10 @@ def main():
                 if e.type == pygame.QUIT:
                     running = False
                 elif e.type in (pygame.MOUSEBUTTONDOWN, pygame.FINGERDOWN):
+                    try:
+                        os.utime("/run/fip-activity", None)   # idle-watchdog stamp
+                    except Exception:
+                        pass
                     subprocess.run(["mpc", "toggle"], stdout=subprocess.DEVNULL,
                                    stderr=subprocess.DEVNULL)
                     last_fetch = 0          # refresh immediately after toggle

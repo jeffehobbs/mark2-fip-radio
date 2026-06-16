@@ -15,6 +15,7 @@ into the radio:
 - 🌡️ **Quiet fan** — off during normal use, ramps only when genuinely hot
 - 🔇 **No idle hiss** — the amp mutes itself when paused
 - 💾 **Remembers volume** across reboots
+- 📉 **Bandwidth-aware** — stops streaming after a few hours with no button/touch interaction (no point streaming to an empty room); any button or tap resumes it
 
 It's deliberately lightweight: the screen is a small Python/pygame app, **not** a
 browser.
@@ -57,10 +58,11 @@ everything: `sudo ./uninstall.sh`.
 | **LEDs** | WS2812 ring on GPIO12; `fip-led` shows volume, using OVOS's PWM-aware helper so it doesn't disturb the fan |
 | **Screen** | `vc4-kms-dsi-7inch` (pinned), then a pygame app polling the FIP API and rendering with PIL + Inter |
 | **Radio** | MPD streaming FIP HiFi AAC; now-playing from `api.radiofrance.fr/livemeta/pull/7` |
+| **Bandwidth** | `fip-idle` watches for button/touch activity and `mpc stop`s the stream (releasing the connection) after the timeout in `/opt/fipradio/idle_timeout` (default 3h) |
 
 All services live in `/opt/fipradio/` and are managed by systemd
 (`fipradio-ui`, `fip-screen`, `fip-led`, `fip-fan`, `fip-play`, `fip-buttons`,
-`tas5806-init`).
+`fip-idle`, `tas5806-init`).
 
 ## Credits
 

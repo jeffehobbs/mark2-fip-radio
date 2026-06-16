@@ -60,6 +60,8 @@ fi
 echo ">> [5/9] Installing the app to $APP..."
 install -d "$APP"
 install -m755 "$REPO"/app/*.py "$REPO"/app/*.sh "$APP/"
+# default idle timeout (seconds) for the bandwidth saver — 3h; tune by editing this file
+[ -f "$APP/idle_timeout" ] || echo 10800 > "$APP/idle_timeout"
 if [ ! -d "$APP/venv" ]; then
   python3 -m venv --system-site-packages "$APP/venv"
 fi
@@ -79,7 +81,7 @@ for s in "$REPO"/systemd/*.service; do
     > "/etc/systemd/system/$(basename "$s")"
 done
 systemctl daemon-reload
-systemctl enable fipradio-ui fip-screen fip-led fip-fan fip-play fip-buttons tas5806-init >/dev/null
+systemctl enable fipradio-ui fip-screen fip-led fip-fan fip-play fip-buttons fip-idle tas5806-init >/dev/null
 
 echo ">> [8/9] Configuring MPD with FIP..."
 cp -n /etc/mpd.conf /etc/mpd.conf.mark2.bak 2>/dev/null || true
