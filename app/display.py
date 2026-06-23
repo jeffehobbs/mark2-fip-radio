@@ -84,6 +84,31 @@ def draw_mic(d, cx, cy, color):
     d.line([(cx - 38, cy + 102), (cx + 38, cy + 102)], fill=color, width=10)          # base
 
 
+_qr_cache = {}
+
+
+def make_qr(url, size):
+    """Black-on-white QR PIL image for `url`, cached by url. Returns None when
+    the qrcode lib is missing so the kiosk degrades gracefully (no QR shown)."""
+    if not url:
+        return None
+    if url in _qr_cache:
+        return _qr_cache[url]
+    im = None
+    try:
+        import qrcode
+        qr = qrcode.QRCode(border=1, error_correction=qrcode.constants.ERROR_CORRECT_M)
+        qr.add_data(url)
+        qr.make(fit=True)
+        im = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+        im = im.resize((size, size), Image.NEAREST)   # crisp, no interpolation
+    except Exception:
+        im = None
+    _qr_cache.clear()          # only ever hold the current track's QR
+    _qr_cache[url] = im
+    return im
+
+
 def render(w, h, data):
     img = Image.new("RGB", (w, h), BG)
     cover = data.get("cover") or ""
@@ -124,28 +149,56 @@ def render(w, h, data):
         ix, iy, isz = rx + bw + 16, 100, 26
         d.polygon([(ix, iy), (ix, iy + isz), (ix + isz * 0.88, iy + isz / 2)],
                   fill=(180, 180, 180))
+    # Apple Music QR (kiosk only) — only for a solid, exact track link.
+    qr_url = data.get("apple") or ""
+    qpanel = None
+    if data.get("apple_exact") and qr_url:
+        qsz, qpad, qm = 116, 8, 22
+        psz = qsz + 2 * qpad
+        qim = make_qr(qr_url, qsz)
+        if qim:
+            qpanel = (w - psz - qm, h - psz - qm, psz, qim, qpad)
+
+    def line_w(y0, y1):
+        """Available text width at vertical span [y0,y1]: shrink to the left of
+        the QR panel where they'd otherwise collide, full width elsewhere."""
+        if qpanel and not (y1 < qpanel[1] or y0 > qpanel[1] + qpanel[2]):
+            return max(80, qpanel[0] - rx - 16)
+        return rw
+
     y = 165
     title = data.get("title") or "FIP"
     tf = font(40)
-    for ln in wrap(d, title, tf, rw, 3):
+    for ln in wrap(d, title, tf, rw, 2 if qpanel else 3):   # leave room for the QR
         d.text((rx, y), ln, font=tf, fill=(255, 255, 255))
         y += 50
     y += 6
     if data.get("artist"):
         af = font(30)
-        d.text((rx, y), wrap(d, data["artist"], af, rw, 1)[0], font=af, fill=PINK)
+        d.text((rx, y), wrap(d, data["artist"], af, line_w(y, y + 38), 1)[0],
+               font=af, fill=PINK)
         y += 44
     sub = data.get("album") or ""
     if data.get("year"):
         sub = (sub + "  ·  " + str(data["year"])) if sub else str(data["year"])
     if sub:
         sf = font(20, bold=False)
-        d.text((rx, y), wrap(d, sub, sf, rw, 1)[0], font=sf, fill=(180, 180, 180))
+        d.text((rx, y), wrap(d, sub, sf, line_w(y, y + 26), 1)[0],
+               font=sf, fill=(180, 180, 180))
     # progress bar
     s, e = data.get("start", 0), data.get("end", 0)
     if s and e and e > s:
         p = max(0.0, min(1.0, (time.time() - s) / (e - s)))
         d.rectangle([0, h - 6, int(w * p), h], fill=PINK)
+    # draw the QR last so it sits above everything
+    if qpanel:
+        qbx, qby, psz, qim, qpad = qpanel
+        d.rounded_rectangle([qbx, qby, qbx + psz, qby + psz], 12, fill=(255, 255, 255))
+        img.paste(qim, (qbx + qpad, qby + qpad))
+        cap = font(15, bold=False)
+        ct = "Apple Music"
+        d.text((qbx + psz - d.textlength(ct, font=cap), qby - 22), ct,
+               font=cap, fill=(225, 225, 230))
     return img
 
 

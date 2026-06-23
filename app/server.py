@@ -12,31 +12,32 @@ _apple = {}  # track-key -> apple music url, persists across polls
 
 
 def apple_url(artist, title):
-    """Resolve artist/title to an Apple Music track link, cached per track.
+    """Resolve artist/title to an Apple Music link, cached per track.
 
-    Uses the keyless iTunes Search API for an exact deep link; falls back to
-    an Apple Music search URL when there's no match or the lookup fails.
+    Returns (url, exact). `exact` is True only for a real iTunes track match
+    (trackViewUrl); on no-match/error we fall back to an Apple Music search
+    URL with exact=False. The kiosk QR uses `exact` to show only solid links.
     """
     if not (artist or title):
-        return ""
+        return ("", False)
     key = f"{artist}␟{title}"
     if key in _apple:
         return _apple[key]
     term = urllib.parse.quote(f"{artist} {title}".strip())
-    url = f"https://music.apple.com/us/search?term={term}"  # fallback
+    info = (f"https://music.apple.com/us/search?term={term}", False)  # fallback
     try:
         q = f"{ITUNES}?term={term}&entity=song&limit=1"
         req = urllib.request.Request(q, headers={"User-Agent": "Mozilla/5.0"})
         res = json.loads(urllib.request.urlopen(req, timeout=6).read())
         hits = res.get("results") or []
         if hits and hits[0].get("trackViewUrl"):
-            url = hits[0]["trackViewUrl"]
+            info = (hits[0]["trackViewUrl"], True)
     except Exception:
         pass
-    _apple[key] = url
+    _apple[key] = info
     if len(_apple) > 200:  # keep the cache from growing unbounded
         _apple.pop(next(iter(_apple)))
-    return url
+    return info
 
 
 def fetch_meta():
@@ -61,6 +62,7 @@ def fetch_meta():
         if cur:
             title = cur.get("title") or ""
             artist = cur.get("authors") or cur.get("performers") or ""
+            ap_url, ap_exact = apple_url(artist, title)
             data = {
                 "title": title,
                 "artist": artist,
@@ -69,14 +71,15 @@ def fetch_meta():
                 "cover": cur.get("visual") or "",
                 "start": cur.get("start", 0),
                 "end": cur.get("end", 0),
-                "apple": apple_url(artist, title),
+                "apple": ap_url,
+                "apple_exact": ap_exact,
             }
         else:
             data = {"title": "FIP", "artist": "", "album": "", "year": "",
-                    "cover": "", "start": 0, "end": 0, "apple": ""}
+                    "cover": "", "start": 0, "end": 0, "apple": "", "apple_exact": False}
     except Exception as e:
         data = {"title": "FIP", "artist": "", "album": str(e)[:60], "year": "",
-                "cover": "", "start": 0, "end": 0, "apple": ""}
+                "cover": "", "start": 0, "end": 0, "apple": "", "apple_exact": False}
     _cache.update(t=now, data=data)
     return data
 
