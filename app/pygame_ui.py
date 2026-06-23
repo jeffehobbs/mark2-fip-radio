@@ -16,6 +16,16 @@ from display import render, fetch
 W, H = 800, 480
 
 
+def is_stopped():
+    """True only when MPD is fully stopped (idle auto-stop), not just paused."""
+    try:
+        out = subprocess.run(["mpc", "status"], capture_output=True, text=True,
+                             timeout=5).stdout
+        return "[playing]" not in out and "[paused]" not in out
+    except Exception:
+        return False
+
+
 def main():
     pygame.init()
     screen = pygame.display.set_mode((W, H), pygame.FULLSCREEN)
@@ -35,7 +45,9 @@ def main():
                         os.utime("/run/fip-activity", None)   # idle-watchdog stamp
                     except Exception:
                         pass
-                    subprocess.run(["mpc", "toggle"], stdout=subprocess.DEVNULL,
+                    # stop (not pause) so we release the FIP connection, not just mute it
+                    action = "play" if is_stopped() else "stop"
+                    subprocess.run(["mpc", action], stdout=subprocess.DEVNULL,
                                    stderr=subprocess.DEVNULL)
                     last_fetch = 0          # refresh immediately after toggle
             now = time.time()

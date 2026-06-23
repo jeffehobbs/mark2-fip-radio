@@ -66,9 +66,10 @@ def main():
                 mpc("play")
             mpc("volume", "-5")
         elif ev.code == ecodes.KEY_VOICECOMMAND and ev.value == 1:   # top action button
-            mpc("toggle")                # from stopped -> plays; from playing -> pauses
+            # stop (not pause) so we release the FIP connection, not just mute it
+            mpc("play") if is_stopped() else mpc("stop")
         elif ev.code == ecodes.KEY_MICMUTE and ev.value == 1:        # mute slider
-            mpc("toggle")
+            mpc("play") if is_stopped() else mpc("stop")
 
 
 if __name__ == "__main__":

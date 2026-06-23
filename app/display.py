@@ -75,10 +75,21 @@ def get_cover(url, size):
         return None
 
 
+def draw_mic(d, cx, cy, color):
+    """A simple microphone glyph, centered on (cx, cy). Drawn with primitives
+    so it doesn't depend on any installed font/emoji coverage."""
+    d.rounded_rectangle([cx - 38, cy - 95, cx + 38, cy + 15], radius=38, fill=color)  # capsule
+    d.arc([cx - 62, cy - 40, cx + 62, cy + 66], start=15, end=165, fill=color, width=10)  # cradle
+    d.line([(cx, cy + 66), (cx, cy + 100)], fill=color, width=10)                     # stem
+    d.line([(cx - 38, cy + 102), (cx + 38, cy + 102)], fill=color, width=10)          # base
+
+
 def render(w, h, data):
     img = Image.new("RGB", (w, h), BG)
+    cover = data.get("cover") or ""
+    is_art = cover.startswith("http")              # songs carry a URL; talk segments carry a bare id
     # blurred cover backdrop
-    cov = get_cover(data.get("cover"), 360)
+    cov = get_cover(cover, 360) if is_art else None
     if cov:
         try:
             from PIL import ImageFilter, ImageEnhance
@@ -91,11 +102,13 @@ def render(w, h, data):
     d = ImageDraw.Draw(img)
     # cover art (left)
     art_x, art_y, art = 40, 80, 320
-    c = get_cover(data.get("cover"), art) if data.get("cover") else None
+    c = get_cover(cover, art) if is_art else None
     if c:
         img.paste(c, (art_x, art_y))
     else:
         d.rounded_rectangle([art_x, art_y, art_x + art, art_y + art], 16, fill=(34, 34, 38))
+        if not is_art:                             # announcement/show: no album art -> mic glyph
+            draw_mic(d, art_x + art // 2, art_y + art // 2, (210, 210, 215))
     # right column
     rx = art_x + art + 36
     rw = w - rx - 36
@@ -106,7 +119,11 @@ def render(w, h, data):
     d.rounded_rectangle([rx, 96, rx + bw, 96 + 44], 8, fill=PINK)
     d.text((rx + 14, 102), "FIP", font=badge, fill=(255, 255, 255))
     if not playing:
-        d.text((rx + bw + 16, 104), "❚❚", font=font(24), fill=(180, 180, 180))
+        # stopped (audio off): show a play ▶ affordance, not pause bars.
+        # Drawn as a polygon so it doesn't depend on font glyph coverage.
+        ix, iy, isz = rx + bw + 16, 100, 26
+        d.polygon([(ix, iy), (ix, iy + isz), (ix + isz * 0.88, iy + isz / 2)],
+                  fill=(180, 180, 180))
     y = 165
     title = data.get("title") or "FIP"
     tf = font(40)
