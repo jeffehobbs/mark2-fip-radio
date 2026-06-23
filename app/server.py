@@ -1,12 +1,42 @@
 #!/usr/bin/env python3
 """FIP internet-radio now-playing display + MPD control backend (Mycroft Mark II)."""
-import json, time, subprocess, urllib.request
+import json, time, subprocess, urllib.request, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
 LIVEMETA = "https://api.radiofrance.fr/livemeta/pull/7"  # 7 = FIP
+ITUNES = "https://itunes.apple.com/search"
 PORT = 8080
 _cache = {"t": 0, "data": None}
+_apple = {}  # track-key -> apple music url, persists across polls
+
+
+def apple_url(artist, title):
+    """Resolve artist/title to an Apple Music track link, cached per track.
+
+    Uses the keyless iTunes Search API for an exact deep link; falls back to
+    an Apple Music search URL when there's no match or the lookup fails.
+    """
+    if not (artist or title):
+        return ""
+    key = f"{artist}␟{title}"
+    if key in _apple:
+        return _apple[key]
+    term = urllib.parse.quote(f"{artist} {title}".strip())
+    url = f"https://music.apple.com/us/search?term={term}"  # fallback
+    try:
+        q = f"{ITUNES}?term={term}&entity=song&limit=1"
+        req = urllib.request.Request(q, headers={"User-Agent": "Mozilla/5.0"})
+        res = json.loads(urllib.request.urlopen(req, timeout=6).read())
+        hits = res.get("results") or []
+        if hits and hits[0].get("trackViewUrl"):
+            url = hits[0]["trackViewUrl"]
+    except Exception:
+        pass
+    _apple[key] = url
+    if len(_apple) > 200:  # keep the cache from growing unbounded
+        _apple.pop(next(iter(_apple)))
+    return url
 
 
 def fetch_meta():
@@ -29,21 +59,24 @@ def fetch_meta():
         if cur is None and steps:  # fall back to most recently started
             cur = max(steps.values(), key=lambda s: s.get("start", 0))
         if cur:
+            title = cur.get("title") or ""
+            artist = cur.get("authors") or cur.get("performers") or ""
             data = {
-                "title": cur.get("title") or "",
-                "artist": cur.get("authors") or cur.get("performers") or "",
+                "title": title,
+                "artist": artist,
                 "album": cur.get("titreAlbum") or "",
                 "year": cur.get("anneeEditionMusique") or "",
                 "cover": cur.get("visual") or "",
                 "start": cur.get("start", 0),
                 "end": cur.get("end", 0),
+                "apple": apple_url(artist, title),
             }
         else:
             data = {"title": "FIP", "artist": "", "album": "", "year": "",
-                    "cover": "", "start": 0, "end": 0}
+                    "cover": "", "start": 0, "end": 0, "apple": ""}
     except Exception as e:
         data = {"title": "FIP", "artist": "", "album": str(e)[:60], "year": "",
-                "cover": "", "start": 0, "end": 0}
+                "cover": "", "start": 0, "end": 0, "apple": ""}
     _cache.update(t=now, data=data)
     return data
 
@@ -87,8 +120,12 @@ html,body{width:800px;height:480px;overflow:hidden;background:#000;
 #title{font-size:40px;font-weight:700;line-height:1.12;max-height:140px;overflow:hidden}
 #artist{font-size:30px;color:#ff5ca0;margin-top:14px;font-weight:600}
 #album{font-size:20px;color:#bbb;margin-top:12px}
+#apple{position:relative;z-index:2;display:none;margin-top:24px;text-decoration:none;
+  font-size:18px;font-weight:600;color:#fff;background:rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.3);padding:9px 16px;border-radius:999px}
+#apple.on{display:inline-block}
 #bar{position:absolute;left:0;bottom:0;height:6px;background:#e6005a;width:0;transition:width 1s linear}
-#tap{position:absolute;inset:0}
+#tap{position:absolute;inset:0;z-index:1}
 .dim #title,.dim #artist{opacity:.4}
 </style></head><body>
 <div id=bg></div>
@@ -99,6 +136,7 @@ html,body{width:800px;height:480px;overflow:hidden;background:#000;
     <div id=title>…</div>
     <div id=artist></div>
     <div id=album></div>
+    <a id=apple target=_blank rel=noopener> Listen on Apple Music</a>
   </div>
 </div>
 <div id=bar></div>
@@ -119,6 +157,9 @@ async function tick(){
       if(d.cover){art.style.backgroundImage=`url("${d.cover}")`;
         bg.style.backgroundImage=`url("${d.cover}")`;}
       else{art.style.backgroundImage="";bg.style.backgroundImage="";}
+      const ap=document.getElementById("apple");
+      if(d.apple){ap.href=d.apple;ap.classList.add("on");}
+      else{ap.classList.remove("on");ap.removeAttribute("href");}
     }
     document.body.classList.toggle("dim",!d.playing);
     // progress bar
@@ -156,10 +197,13 @@ class H(BaseHTTPRequestHandler):
         elif u.path == "/api/cmd":
             q = parse_qs(u.query)
             a = (q.get("action") or [""])[0]
-            if a == "toggle": mpc("toggle")
+            if a == "toggle":
+                # stop (not pause) so we release the FIP connection, not just mute it
+                st = mpc("status")
+                mpc("play") if ("[playing]" not in st and "[paused]" not in st) else mpc("stop")
             elif a == "next": mpc("next")
             elif a == "play": mpc("play")
-            elif a == "pause": mpc("pause")
+            elif a == "pause": mpc("stop")
             elif a == "volup": mpc("volume", "+5")
             elif a == "voldown": mpc("volume", "-5")
             self._send(200, "ok", "text/plain")
