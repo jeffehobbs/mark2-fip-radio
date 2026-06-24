@@ -111,7 +111,7 @@ PAGE = r"""<!doctype html><html><head><meta charset=utf-8>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
 html,body{width:800px;height:480px;overflow:hidden;background:#000;
-  font-family:"Helvetica Neue",Arial,sans-serif;color:#fff;cursor:none}
+  font-family:"Helvetica Neue",Arial,sans-serif;color:#fff}
 #bg{position:absolute;inset:0;background-size:cover;background-position:center;
   filter:blur(40px) brightness(.35);transform:scale(1.2);transition:background-image .6s}
 #wrap{position:relative;height:100%;display:flex;align-items:center;gap:34px;padding:0 46px}
