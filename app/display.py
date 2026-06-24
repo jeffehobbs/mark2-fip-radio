@@ -185,6 +185,15 @@ def render(w, h, data):
         sf = font(20, bold=False)
         d.text((rx, y), wrap(d, sub, sf, line_w(y, y + 26), 1)[0],
                font=sf, fill=(180, 180, 180))
+    # network throughput readout (top-right): live inbound bitrate + status dot
+    net = data.get("net", 0) or 0
+    ntxt = f"{net / 1000:.1f} Mbps" if net >= 1000 else f"{round(net)} kbps"
+    nf = font(17, bold=False)
+    ntx = w - 18 - d.textlength(ntxt, font=nf)
+    d.text((ntx, 16), ntxt, font=nf, fill=(190, 190, 195))
+    dcx, dcy, dr = ntx - 14, 26, 5
+    d.ellipse([dcx - dr, dcy - dr, dcx + dr, dcy + dr],
+              fill=(58, 209, 122) if playing else (110, 110, 110))
     # progress bar
     s, e = data.get("start", 0), data.get("end", 0)
     if s and e and e > s:

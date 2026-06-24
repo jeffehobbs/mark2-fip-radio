@@ -4,12 +4,12 @@ interaction, so we're not streaming to an empty room. `mpc stop` (not pause)
 actually closes the connection. Any button/tap resumes it (see buttons/pygame).
 
 Idle timeout (seconds) is read from /opt/fipradio/idle_timeout if present,
-else defaults to 2 hours.
+else defaults to 5 minutes.
 """
 import os, time, subprocess
 
 ACT = "/run/fip-activity"
-DEFAULT_IDLE = 2 * 3600
+DEFAULT_IDLE = 5 * 60
 
 
 def idle_secs():

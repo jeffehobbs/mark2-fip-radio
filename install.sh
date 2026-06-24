@@ -60,8 +60,8 @@ fi
 echo ">> [5/9] Installing the app to $APP..."
 install -d "$APP"
 install -m755 "$REPO"/app/*.py "$REPO"/app/*.sh "$APP/"
-# default idle timeout (seconds) for the bandwidth saver — 3h; tune by editing this file
-[ -f "$APP/idle_timeout" ] || echo 10800 > "$APP/idle_timeout"
+# default idle timeout (seconds) for the bandwidth saver — 5m; tune by editing this file
+[ -f "$APP/idle_timeout" ] || echo 300 > "$APP/idle_timeout"
 if [ ! -d "$APP/venv" ]; then
   python3 -m venv --system-site-packages "$APP/venv"
 fi

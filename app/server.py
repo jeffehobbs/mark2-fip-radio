@@ -9,6 +9,32 @@ ITUNES = "https://itunes.apple.com/search"
 PORT = 8080
 _cache = {"t": 0, "data": None}
 _apple = {}  # track-key -> apple music url, persists across polls
+_net = {"t": 0, "bytes": 0}  # last RX sample for throughput delta
+
+
+def net_rate():
+    """Current inbound throughput in kbps, summed over real interfaces.
+
+    Reads cumulative RX-byte counters from /proc/net/dev and divides the
+    delta since the previous call by elapsed time. Dominated by the FIP
+    audio stream MPD is pulling. Returns 0.0 on the first call / any error.
+    """
+    try:
+        total = 0
+        with open("/proc/net/dev") as f:
+            for line in f.readlines()[2:]:  # skip two header rows
+                iface, _, rest = line.partition(":")
+                if iface.strip() == "lo":
+                    continue
+                total += int(rest.split()[0])  # column 0 = RX bytes
+        now = time.time()
+        prev_t, prev_b = _net["t"], _net["bytes"]
+        _net.update(t=now, bytes=total)
+        if prev_t and now > prev_t and total >= prev_b:
+            return round((total - prev_b) * 8 / (now - prev_t) / 1000, 1)
+    except Exception:
+        pass
+    return 0.0
 
 
 def apple_url(artist, title):
@@ -129,9 +155,15 @@ html,body{width:800px;height:480px;overflow:hidden;background:#000;
 #apple.on{display:inline-block}
 #bar{position:absolute;left:0;bottom:0;height:6px;background:#e6005a;width:0;transition:width 1s linear}
 #tap{position:absolute;inset:0;z-index:1}
+#net{position:absolute;top:14px;right:18px;z-index:2;font-size:15px;font-weight:600;
+  color:rgba(255,255,255,.6);font-variant-numeric:tabular-nums}
+#net::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:#3ad17a;margin-right:7px;vertical-align:middle;box-shadow:0 0 6px #3ad17a}
+.dim #net::before{background:#666;box-shadow:none}
 .dim #title,.dim #artist{opacity:.4}
 </style></head><body>
 <div id=bg></div>
+<div id=net>— kbps</div>
 <div id=wrap>
   <div id=art></div>
   <div id=info>
@@ -165,6 +197,8 @@ async function tick(){
       else{ap.classList.remove("on");ap.removeAttribute("href");}
     }
     document.body.classList.toggle("dim",!d.playing);
+    document.getElementById("net").textContent=
+      (d.net>=1000?(d.net/1000).toFixed(1)+" Mbps":Math.round(d.net||0)+" kbps");
     // progress bar
     if(d.start&&d.end&&d.end>d.start){
       const now=Date.now()/1000;
@@ -196,6 +230,7 @@ class H(BaseHTTPRequestHandler):
         elif u.path == "/api/now":
             d = dict(fetch_meta())
             d.update(mpd_state())
+            d["net"] = net_rate()
             self._send(200, json.dumps(d), "application/json")
         elif u.path == "/api/cmd":
             q = parse_qs(u.query)
